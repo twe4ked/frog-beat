@@ -3,6 +3,8 @@ use coffee::input::keyboard::KeyCode;
 use coffee::input::KeyboardAndMouse;
 use coffee::load::Task;
 use coffee::{Game, Result, Timer};
+use legion::query::{IntoQuery, Query, Write};
+use legion::{Universe, World};
 
 const PRUSSIAN_BLUE: Color = Color {
     r: 0.0,
@@ -27,9 +29,19 @@ fn main() -> Result<()> {
 }
 
 #[derive(Debug)]
+struct Position {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Debug)]
+struct TilePosition {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Debug)]
 struct Player {
-    position: Point,
-    tile_position: Point,
     direction: Option<Direction>,
 }
 
@@ -44,7 +56,8 @@ enum Direction {
 #[derive(Debug)]
 struct FrogBeat {
     palette: Image,
-    player: Player,
+    universe: Universe,
+    world: World,
 }
 
 impl Game for FrogBeat {
@@ -52,56 +65,73 @@ impl Game for FrogBeat {
     type LoadingScreen = ();
 
     fn load(_window: &Window) -> Task<FrogBeat> {
-        Task::using_gpu(|gpu| Image::from_colors(gpu, &[PRUSSIAN_BLUE])).map(|palette| FrogBeat {
-            palette,
-            player: Player {
-                position: Point::new(0.0, 0.0),
-                tile_position: Point::new(0.0, 0.0),
-                direction: None,
-            },
+        Task::using_gpu(|gpu| Image::from_colors(gpu, &[PRUSSIAN_BLUE])).map(|palette| {
+            let universe = Universe::new(None);
+            let mut world = universe.create_world();
+
+            world.insert_from(
+                (),
+                vec![(
+                    Position { x: 0.0, y: 0.0 },
+                    TilePosition { x: 0.0, y: 0.0 },
+                    Player { direction: None },
+                )],
+            );
+
+            FrogBeat {
+                palette,
+                universe,
+                world,
+            }
         })
     }
 
     fn interact(&mut self, input: &mut Self::Input, _window: &mut Window) {
-        if input.was_key_released(KeyCode::W) {
-            self.player.direction = Some(Direction::Up);
-        }
-        if input.was_key_released(KeyCode::S) {
-            self.player.direction = Some(Direction::Down);
-        }
-        if input.was_key_released(KeyCode::A) {
-            self.player.direction = Some(Direction::Left);
-        }
-        if input.was_key_released(KeyCode::D) {
-            self.player.direction = Some(Direction::Right);
+        let query = <(Write<Player>)>::query();
+        for player in query.iter(&self.world) {
+            if input.was_key_released(KeyCode::W) {
+                player.direction = Some(Direction::Up);
+            }
+            if input.was_key_released(KeyCode::S) {
+                player.direction = Some(Direction::Down);
+            }
+            if input.was_key_released(KeyCode::A) {
+                player.direction = Some(Direction::Left);
+            }
+            if input.was_key_released(KeyCode::D) {
+                player.direction = Some(Direction::Right);
+            }
         }
     }
 
     fn update(&mut self, _window: &Window) {
-        match &self.player.direction {
-            Some(direction) => {
-                match direction {
-                    Direction::Up => self.player.tile_position.y -= 1.0,
-                    Direction::Down => self.player.tile_position.y += 1.0,
-                    Direction::Left => self.player.tile_position.x -= 1.0,
-                    Direction::Right => self.player.tile_position.x += 1.0,
+        let query = <(Write<Player>, Write<Position>, Write<TilePosition>)>::query();
+        for (player, position, tile_position) in query.iter(&self.world) {
+            match &player.direction {
+                Some(direction) => {
+                    match direction {
+                        Direction::Up => tile_position.y -= 1.0,
+                        Direction::Down => tile_position.y += 1.0,
+                        Direction::Left => tile_position.x -= 1.0,
+                        Direction::Right => tile_position.x += 1.0,
+                    }
+                    player.direction = None;
                 }
-                self.player.direction = None;
+                None => {}
             }
-            None => {}
-        }
 
-        if self.player.position.y < self.player.tile_position.y * TILE_SIZE {
-            self.player.position.y += 10.0;
-        }
-        if self.player.position.y > self.player.tile_position.y * TILE_SIZE {
-            self.player.position.y -= 10.0;
-        }
-        if self.player.position.x < self.player.tile_position.x * TILE_SIZE {
-            self.player.position.x += 10.0;
-        }
-        if self.player.position.x > self.player.tile_position.x * TILE_SIZE {
-            self.player.position.x -= 10.0;
+            if position.y > tile_position.y * TILE_SIZE {
+                position.y -= 10.0;
+            }
+            if position.y < tile_position.y * TILE_SIZE {
+                position.y += 10.0;
+            }
+            if position.x < tile_position.x * TILE_SIZE {
+                position.x += 10.0;
+            }
+            if position.x > tile_position.x * TILE_SIZE {
+                position.x -= 10.0;
+            }
         }
     }
 
@@ -109,18 +139,22 @@ impl Game for FrogBeat {
         frame.clear(Color::BLACK);
 
         let target = &mut frame.as_target();
-        self.palette.draw(
-            Quad {
-                source: Rectangle {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 1.0,
-                    height: 1.0,
+
+        let query = <(Write<Position>)>::query();
+        for position in query.iter(&self.world) {
+            self.palette.draw(
+                Quad {
+                    source: Rectangle {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 1.0,
+                        height: 1.0,
+                    },
+                    position: Point::new(position.x, position.y),
+                    size: (TILE_SIZE, TILE_SIZE),
                 },
-                position: self.player.position,
-                size: (TILE_SIZE, TILE_SIZE),
-            },
-            target,
-        );
+                target,
+            );
+        }
     }
 }

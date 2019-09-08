@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 coffee = { version = "0.3", features = ["opengl"] }
+legion = "0.1.1"
