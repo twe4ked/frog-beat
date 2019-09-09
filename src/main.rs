@@ -1,9 +1,9 @@
-use coffee::graphics::{Color, Frame, Image, Point, Quad, Rectangle, Window, WindowSettings};
+use coffee::graphics::{Color, Frame, Mesh, Rectangle, Shape, Window, WindowSettings};
 use coffee::input::keyboard::KeyCode;
 use coffee::input::KeyboardAndMouse;
 use coffee::load::Task;
 use coffee::{Game, Result, Timer};
-use legion::query::{IntoQuery, Query, Write};
+use legion::query::{IntoQuery, Query, Read, Write};
 use legion::{Universe, World};
 
 const PRUSSIAN_BLUE: Color = Color {
@@ -55,7 +55,6 @@ enum Direction {
 
 #[derive(Debug)]
 struct FrogBeat {
-    palette: Image,
     universe: Universe,
     world: World,
 }
@@ -65,7 +64,7 @@ impl Game for FrogBeat {
     type LoadingScreen = ();
 
     fn load(_window: &Window) -> Task<FrogBeat> {
-        Task::using_gpu(|gpu| Image::from_colors(gpu, &[PRUSSIAN_BLUE])).map(|palette| {
+        Task::new(move || {
             let universe = Universe::new(None);
             let mut world = universe.create_world();
 
@@ -75,14 +74,11 @@ impl Game for FrogBeat {
                     Position { x: 0.0, y: 0.0 },
                     TilePosition { x: 0.0, y: 0.0 },
                     Player { direction: None },
+                    PRUSSIAN_BLUE,
                 )],
             );
 
-            FrogBeat {
-                palette,
-                universe,
-                world,
-            }
+            FrogBeat { universe, world }
         })
     }
 
@@ -138,23 +134,19 @@ impl Game for FrogBeat {
     fn draw(&mut self, frame: &mut Frame, _timer: &Timer) {
         frame.clear(Color::BLACK);
 
-        let target = &mut frame.as_target();
+        let mut mesh = Mesh::new();
 
-        let query = <(Write<Position>)>::query();
-        for position in query.iter(&self.world) {
-            self.palette.draw(
-                Quad {
-                    source: Rectangle {
-                        x: 0.0,
-                        y: 0.0,
-                        width: 1.0,
-                        height: 1.0,
-                    },
-                    position: Point::new(position.x, position.y),
-                    size: (TILE_SIZE, TILE_SIZE),
-                },
-                target,
-            );
+        let query = <(Read<Position>, Read<Color>)>::query();
+        for (position, color) in query.iter(&self.world) {
+            let rect = Rectangle {
+                x: position.x,
+                y: position.y,
+                width: TILE_SIZE,
+                height: TILE_SIZE,
+            };
+            mesh.fill(Shape::Rectangle(rect), *color);
         }
+
+        mesh.draw(&mut frame.as_target());
     }
 }
