@@ -1,6 +1,7 @@
 use coffee::graphics::{Color, Frame, Mesh, Rectangle, Shape, Window, WindowSettings};
 use coffee::input::keyboard::KeyCode;
 use coffee::input::KeyboardAndMouse;
+use coffee::load::loading_screen::ProgressBar;
 use coffee::load::Task;
 use coffee::{Game, Result, Timer};
 use legion::query::{IntoQuery, Query, Read, Write};
@@ -61,7 +62,7 @@ struct FrogBeat {
 
 impl Game for FrogBeat {
     type Input = KeyboardAndMouse;
-    type LoadingScreen = ();
+    type LoadingScreen = ProgressBar;
 
     fn load(_window: &Window) -> Task<FrogBeat> {
         Task::new(move || {
