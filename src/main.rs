@@ -13,6 +13,12 @@ const PRUSSIAN_BLUE: Color = Color {
     b: 0.3255,
     a: 1.0,
 };
+const RED: Color = Color {
+    r: 1.0,
+    g: 0.0,
+    b: 0.0,
+    a: 1.0,
+};
 const TILE_COUNT_Y: f32 = 16.0;
 const TILE_COUNT_X: f32 = 20.0;
 const TILE_SIZE: f32 = 50.0;
@@ -33,6 +39,15 @@ fn main() -> Result<()> {
 struct Position {
     x: f32,
     y: f32,
+}
+
+impl From<&TilePosition> for Position {
+    fn from(tile_position: &TilePosition) -> Self {
+        Self {
+            x: tile_position.x * TILE_SIZE,
+            y: tile_position.y * TILE_SIZE,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -69,14 +84,28 @@ impl Game for FrogBeat {
             let universe = Universe::new(None);
             let mut world = universe.create_world();
 
+            let tile_position = TilePosition {
+                x: TILE_COUNT_X / 2.0,
+                y: TILE_COUNT_Y - 1.0,
+            };
             world.insert_from(
                 (),
                 vec![(
-                    Position { x: 0.0, y: 0.0 },
-                    TilePosition { x: 0.0, y: 0.0 },
+                    Position::from(&tile_position),
+                    tile_position,
                     Player { direction: None },
                     PRUSSIAN_BLUE,
                 )],
+            );
+            world.insert_from(
+                (),
+                (0..5).map(|i| {
+                    let tile_position = TilePosition {
+                        x: i as f32,
+                        y: 1.0,
+                    };
+                    (Position::from(&tile_position), tile_position, RED)
+                }),
             );
 
             FrogBeat { universe, world }
@@ -102,8 +131,8 @@ impl Game for FrogBeat {
     }
 
     fn update(&mut self, _window: &Window) {
-        let query = <(Write<Player>, Write<Position>, Write<TilePosition>)>::query();
-        for (player, position, tile_position) in query.iter(&self.world) {
+        let query = <(Write<Player>, Write<TilePosition>)>::query();
+        for (player, tile_position) in query.iter(&self.world) {
             match &player.direction {
                 Some(direction) => {
                     match direction {
@@ -116,7 +145,10 @@ impl Game for FrogBeat {
                 }
                 None => {}
             }
+        }
 
+        let query = <(Write<Position>, Read<TilePosition>)>::query();
+        for (position, tile_position) in query.iter(&self.world) {
             if position.y > tile_position.y * TILE_SIZE {
                 position.y -= 10.0;
             }
