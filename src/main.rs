@@ -62,6 +62,9 @@ struct Player {
 }
 
 #[derive(Debug)]
+struct Enemy {}
+
+#[derive(Debug)]
 enum Direction {
     Up,
     Down,
@@ -73,6 +76,7 @@ enum Direction {
 struct FrogBeat {
     universe: Universe,
     world: World,
+    tick: u32,
 }
 
 impl Game for FrogBeat {
@@ -104,11 +108,15 @@ impl Game for FrogBeat {
                         x: i as f32,
                         y: 1.0,
                     };
-                    (Position::from(&tile_position), tile_position, RED)
+                    (Position::from(&tile_position), tile_position, RED, Enemy {})
                 }),
             );
 
-            FrogBeat { universe, world }
+            FrogBeat {
+                universe,
+                world,
+                tick: 0,
+            }
         })
     }
 
@@ -118,7 +126,14 @@ impl Game for FrogBeat {
 
     fn update(&mut self, _window: &Window) {
         system::update_player_tile_position(&mut self.world);
+
+        if self.tick % 60 == 0 {
+            system::update_enemy_tile_position(&mut self.world);
+        }
+
         system::update_position(&mut self.world);
+
+        self.tick = self.tick.wrapping_add(1);
     }
 
     fn draw(&mut self, frame: &mut Frame, _timer: &Timer) {

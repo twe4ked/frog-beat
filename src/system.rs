@@ -1,7 +1,8 @@
-use super::{Direction, Player, Position, TilePosition, TILE_SIZE};
+use super::{Direction, Enemy, Player, Position, TilePosition, TILE_SIZE};
 use coffee::graphics::{Color, Mesh, Rectangle, Shape};
 use coffee::input::keyboard::KeyCode;
 use coffee::input::KeyboardAndMouse;
+use legion::query::filter::entity_data;
 use legion::query::{IntoQuery, Query, Read, Write};
 use legion::World;
 
@@ -38,6 +39,28 @@ pub fn update_player_tile_position(world: &mut World) {
             }
             None => {}
         }
+    }
+}
+
+pub fn update_enemy_tile_position(world: &mut World) {
+    let query = <Write<TilePosition>>::query().filter(entity_data::<Enemy>());
+    for tile_position in query.iter(world) {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        let mut direction = vec![
+            Direction::Up,
+            Direction::Down,
+            Direction::Left,
+            Direction::Right,
+        ];
+        direction.shuffle(&mut rng);
+
+        match direction[0] {
+            Direction::Up => tile_position.y -= 1.0,
+            Direction::Down => tile_position.y += 1.0,
+            Direction::Left => tile_position.x -= 1.0,
+            Direction::Right => tile_position.x += 1.0,
+        };
     }
 }
 
